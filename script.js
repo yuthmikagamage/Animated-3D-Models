@@ -26,11 +26,23 @@ const loader = new FBXLoader();
 
 let mixer;
 
+const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+scene.add(ambientLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+dirLight.position.set(5, 10, 5);
+scene.add(dirLight);
+
 loader.load(
   "/characters/character_1/scene.fbx",
+  (fbx) => {
+    fbx.scale.setScalar(0.01);
+    scene.add(fbx);
 
+    console.log("Model loaded:", fbx);
+  },
+  undefined,
   (error) => {
-    console.error("Error fbx:", error);
+    console.error("Error loading FBX:", error);
   },
 );
 function animate() {
