@@ -10,7 +10,8 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000,
 );
-camera.position.set(0, 0.5, 2);
+camera.position.set(0, 1.7, -1.5);
+camera.lookAt(0, 0.6, 0.8);
 
 const renderer = new THREE.WebGLRenderer({
   canvas: document.querySelector("#bg"),
@@ -29,6 +30,18 @@ const dirLight = new THREE.DirectionalLight(0xffffff, 2);
 dirLight.position.set(5, 10, 5);
 scene.add(dirLight);
 
+const floorGeometry = new THREE.PlaneGeometry(10, 10);
+const floorMaterial = new THREE.MeshStandardMaterial({
+  color: 0x222222,
+  roughness: 0.8,
+  metalness: 0.2,
+});
+const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = 0;
+floor.receiveShadow = true;
+scene.add(floor);
+
 let idleAction = null;
 let punchAction = null;
 let isPunching = false;
@@ -37,6 +50,12 @@ loader.load(
   "/characters/character_1/scene.fbx",
   (fbx) => {
     fbx.scale.setScalar(1);
+    fbx.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
     scene.add(fbx);
 
     mixer = new THREE.AnimationMixer(fbx);
