@@ -42,9 +42,19 @@ floor.position.y = 0;
 floor.receiveShadow = true;
 scene.add(floor);
 
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
 let idleAction = null;
+let walkAction = null;
 let punchAction = null;
 let isPunching = false;
+let isWalking = false;
+let character = null;
+let targetPosition = null;
+const MOVE_DISTANCE = 1.5;
+const MOVE_SPEED = 2.0;
+let moveDirection = new THREE.Vector3();
 
 loader.load(
   "/characters/character_1/scene.fbx",
@@ -57,10 +67,11 @@ loader.load(
       }
     });
     scene.add(fbx);
+    character = fbx;
 
     mixer = new THREE.AnimationMixer(fbx);
-
     idleAction = mixer.clipAction(fbx.animations[3]);
+    walkAction = mixer.clipAction(fbx.animations[1]);
 
     const originalPunchClip = fbx.animations[4];
     const clippedPunch = THREE.AnimationUtils.subclip(
@@ -69,7 +80,6 @@ loader.load(
       5,
       19,
     );
-
     punchAction = mixer.clipAction(clippedPunch);
     punchAction.setLoop(THREE.LoopOnce, 1);
     punchAction.clampWhenFinished = true;
@@ -85,32 +95,81 @@ loader.load(
     });
   },
   undefined,
-  (error) => {
-    console.error("Error loading FBX:", error);
-  },
+  (error) => console.error("Error loading FBX:", error),
 );
+
 window.addEventListener("mousedown", (e) => {
-  if (e.button === 0 && !isPunching && idleAction && punchAction) {
+  if (!character) return;
+
+  if (e.button === 0) {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObject(floor);
+
+    if (hits.length > 0 && !isPunching) {
+      const clickPoint = hits[0].point;
+      const dir = new THREE.Vector3(
+        clickPoint.x - character.position.x,
+        0,
+        clickPoint.z - character.position.z,
+      ).normalize();
+
+      moveDirection.copy(dir);
+      targetPosition = new THREE.Vector3(
+        character.position.x + dir.x * MOVE_DISTANCE,
+        character.position.y,
+        character.position.z + dir.z * MOVE_DISTANCE,
+      );
+
+      if (!isWalking) {
+        isWalking = true;
+        idleAction.fadeOut(0.2);
+        walkAction.reset().fadeIn(0.2).play();
+      }
+    }
+  } else if (e.button === 2 && !isPunching && idleAction && punchAction) {
     isPunching = true;
-    idleAction.fadeOut(0.2);
+    isWalking = false;
+    targetPosition = null;
+    walkAction.fadeOut(0.2);
     punchAction.reset().fadeIn(0.2).play();
   }
 });
 
+window.addEventListener("contextmenu", (e) => e.preventDefault());
+
 window.addEventListener("resize", () => {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-  camera.aspect = width / height;
+  camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(width, height);
+  renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 });
 
 function animate() {
   requestAnimationFrame(animate);
-  if (mixer) {
-    mixer.update(clock.getDelta());
+  const delta = clock.getDelta();
+
+  if (mixer) mixer.update(delta);
+
+  if (character && targetPosition && isWalking) {
+    const distLeft = new THREE.Vector3()
+      .subVectors(targetPosition, character.position)
+      .length();
+    const step = MOVE_SPEED * delta;
+
+    if (distLeft <= step) {
+      character.position.copy(targetPosition);
+      targetPosition = null;
+      isWalking = false;
+      walkAction.fadeOut(0.2);
+      idleAction.reset().fadeIn(0.2).play();
+    } else {
+      character.position.addScaledVector(moveDirection, step);
+    }
   }
+
   renderer.render(scene, camera);
 }
 animate();
