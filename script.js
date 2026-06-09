@@ -54,6 +54,7 @@ let character = null;
 let targetPosition = null;
 const MOVE_DISTANCE = 1.5;
 const MOVE_SPEED = 2.0;
+let targetRotationY = 0;
 let moveDirection = new THREE.Vector3();
 
 loader.load(
@@ -67,6 +68,7 @@ loader.load(
       }
     });
     scene.add(fbx);
+    fbx.add(camera);
     character = fbx;
 
     mixer = new THREE.AnimationMixer(fbx);
@@ -117,6 +119,8 @@ window.addEventListener("mousedown", (e) => {
       ).normalize();
 
       moveDirection.copy(dir);
+      targetRotationY = Math.atan2(dir.x, dir.z);
+
       targetPosition = new THREE.Vector3(
         character.position.x + dir.x * MOVE_DISTANCE,
         character.position.y,
@@ -152,21 +156,29 @@ function animate() {
   const delta = clock.getDelta();
 
   if (mixer) mixer.update(delta);
+  if (character) {
+    let angleDiff = targetRotationY - character.rotation.y;
+    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    character.rotation.y += angleDiff * Math.min(1, 12 * delta);
 
-  if (character && targetPosition && isWalking) {
-    const distLeft = new THREE.Vector3()
-      .subVectors(targetPosition, character.position)
-      .length();
-    const step = MOVE_SPEED * delta;
+    const isAligned = Math.abs(angleDiff) < 0.15;
 
-    if (distLeft <= step) {
-      character.position.copy(targetPosition);
-      targetPosition = null;
-      isWalking = false;
-      walkAction.fadeOut(0.2);
-      idleAction.reset().fadeIn(0.2).play();
-    } else {
-      character.position.addScaledVector(moveDirection, step);
+    if (targetPosition && isWalking && isAligned) {
+      const distLeft = new THREE.Vector3()
+        .subVectors(targetPosition, character.position)
+        .length();
+      const step = MOVE_SPEED * delta;
+
+      if (distLeft <= step) {
+        character.position.copy(targetPosition);
+        targetPosition = null;
+        isWalking = false;
+        walkAction.fadeOut(0.2);
+        idleAction.reset().fadeIn(0.2).play();
+      } else {
+        character.position.addScaledVector(moveDirection, step);
+      }
     }
   }
 
